@@ -1,5 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
+# /curobo/curobo/_src/solver/solver_core_cfg.py
 """SolverCoreCfg and factory functions for building solver infrastructure.
 
 SolverCoreCfg holds the configuration needed by SolverCore to construct rollouts,
@@ -129,6 +128,7 @@ def create_metrics_rollout_config(
         RobotStateTransitionCfg
     ] = RobotStateTransitionCfg,
     cost_manager_config_instance_type: Type[RobotCostManagerCfg] = RobotCostManagerCfg,
+    self_collision_check: bool = True,
 ) -> RobotRolloutCfg:
     """Build the metrics rollout config from resolved YAML dicts.
 
@@ -153,6 +153,14 @@ def create_metrics_rollout_config(
         transition_model_config_instance_type=transition_model_config_instance_type,
         cost_manager_config_instance_type=cost_manager_config_instance_type,
     )
+    # The metrics rollout decides final success (process_metrics computes
+    # `feasible` from it). It must honor self_collision_check the same way the
+    # optimizer rollouts do (see create_rollout_configs); otherwise a planner
+    # built with self_collision_check=False still rejects self-colliding goals
+    # as infeasible even though the optimizer was allowed to reach them.
+    if not self_collision_check:
+        for cost_cfg in metrics_rollout_config.get_cost_manager_configs():
+            cost_cfg.disable_self_collision()
     return metrics_rollout_config
 
 
@@ -347,6 +355,7 @@ def create_solver_core_cfg(
         device_cfg,
         transition_model_config_instance_type,
         cost_manager_config_instance_type,
+        self_collision_check,
     )
 
     return SolverCoreCfg(
@@ -359,3 +368,4 @@ def create_solver_core_cfg(
         random_seed=random_seed,
         store_debug=store_debug,
     )
+

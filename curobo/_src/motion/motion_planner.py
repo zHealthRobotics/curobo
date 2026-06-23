@@ -1,5 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
+# file location: /curobo/curobo/_src/motion/motion_planner.py
 """Single-problem motion planner with retry logic and graph-planner seeding."""
 
 from __future__ import annotations
@@ -419,6 +418,7 @@ class MotionPlanner:
         grasp_lift_axis: str = "z",
         grasp_lift_offset: float = -0.15,
         grasp_lift_in_tool_frame: bool = True,
+        grasp_frames: List[str] = None,
         plan_approach_to_grasp: bool = True,
         plan_grasp_to_lift: bool = True,
         disable_collision_links: List[str] = None,
@@ -476,7 +476,9 @@ class MotionPlanner:
 
         approach_poses_dict = {}
         for frame, goal_pose in grasp_poses_dict.items():
-            if grasp_approach_in_tool_frame:
+            if grasp_frames is not None and frame not in grasp_frames:
+                approach_poses_dict[frame] = goal_pose  # idle frame stays at original pose
+            elif grasp_approach_in_tool_frame:
                 approach_poses_dict[frame] = goal_pose.multiply(approach_offset)
             else:
                 approach_poses_dict[frame] = approach_offset.multiply(goal_pose)
@@ -512,7 +514,10 @@ class MotionPlanner:
             axis=grasp_approach_axis, non_terminal_scale=1.0,
             project_distance_to_goal=grasp_approach_in_tool_frame,
         )
-        self.update_tool_pose_criteria({k: linear_motion for k in grasp_poses.tool_frames})
+        if grasp_frames is not None:
+            self.update_tool_pose_criteria({k: linear_motion for k in grasp_frames})
+        else:
+            self.update_tool_pose_criteria({k: linear_motion for k in grasp_poses.tool_frames})
 
         grasp_tool_pose = GoalToolPose.from_poses(
             grasp_poses_dict, ordered_tool_frames=grasp_poses.tool_frames, num_goalset=1,
@@ -551,7 +556,9 @@ class MotionPlanner:
 
         lift_poses_dict = {}
         for frame, goal_pose in grasp_poses_dict.items():
-            if grasp_lift_in_tool_frame:
+            if grasp_frames is not None and frame not in grasp_frames:
+                lift_poses_dict[frame] = goal_pose  # idle frame stays at original pose
+            elif grasp_lift_in_tool_frame:
                 lift_poses_dict[frame] = goal_pose.multiply(lift_offset)
             else:
                 lift_poses_dict[frame] = lift_offset.multiply(goal_pose)
@@ -563,7 +570,10 @@ class MotionPlanner:
             axis=grasp_lift_axis, non_terminal_scale=1.0,
             project_distance_to_goal=grasp_lift_in_tool_frame,
         )
-        self.update_tool_pose_criteria({k: lift_linear for k in grasp_poses.tool_frames})
+        if grasp_frames is not None:
+            self.update_tool_pose_criteria({k: lift_linear for k in grasp_frames})
+        else:
+            self.update_tool_pose_criteria({k: lift_linear for k in grasp_poses.tool_frames})
 
         self.disable_link_collision(disable_collision_links)
         lift_result = self.plan_pose(lift_tool_pose, lift_start)
@@ -630,3 +640,4 @@ class MotionPlanner:
     def update_tool_pose_criteria(self, tool_pose_criteria: Dict[str, ToolPoseCriteria]):
         self.ik_solver.update_tool_pose_criteria(tool_pose_criteria)
         self.trajopt_solver.update_tool_pose_criteria(tool_pose_criteria)
+

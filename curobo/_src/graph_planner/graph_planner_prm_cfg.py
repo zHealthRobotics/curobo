@@ -1,6 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-# Standard Library
+# /curobo/curobo/_src/graph_planner/graph_planner_prm_cfg.py
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Type, Union
 
@@ -186,6 +184,16 @@ class PRMGraphPlannerCfg:
             cost_manager_config_instance_type=cost_manager_config_instance_type,
         )
 
+        # Honor self_collision_check on the feasibility rollout, matching the
+        # trajopt/IK solvers (see solver_core_cfg.create_optimizer_rollout_config).
+        # Without this the PRM graph planner keeps the self_collision_cfg weight
+        # from metrics_base.yml active, so plan_cspace(enable_graph_attempt=...)
+        # rejects self-collision-disabled queries with "Start or End state in
+        # collision" even though plan_pose accepts the same start state.
+        if not self_collision_check:
+            for cost_cfg in rollout_config.get_cost_manager_configs():
+                cost_cfg.disable_self_collision()
+
         # Extract graph planner parameters
         graph_params = graph_planner_config_dict["graph_planner"]
 
@@ -197,3 +205,4 @@ class PRMGraphPlannerCfg:
             rollout_config=rollout_config,
             graph_path_finder_seed=graph_path_finder_seed,
         )
+
